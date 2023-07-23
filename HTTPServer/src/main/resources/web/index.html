@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>Test</title>
+		<link rel="stylesheet" href="index_style.css">
+	</head>
+	<body>
+		
+		<header>
+			<img class="logo" src="symbol3.png"/>
+			<h1>Jarolift RF controll panel</h1>
+		</header>
+		
+		<section>
+			<nav>
+				<p style="color: red;">WORK IN PROGRESS</p>
+				<pre class="infobox">
+ID Requirements:
+* 
+* ID = 
+* [0-F][FFFFF]0[0-F]
+* |-A-||--B--|C|-D-|
+*
+* 1. C = 0
+* 2. A = D
+* 3. ID > 0
+				</pre>
+				<input type="text" value="00000000" id="randomidfield"/>
+				<button onclick="makeRandomId()">Random ID</button>
+				<pre class="infobox">
+URL-Controll: 
+* 
+* /controll?name=
+* CHANNEL&action=
+* ACTION
+* 
+* CHANNEL=Channel name
+* ACTION=up/down/stop
+				</pre>
+				<script>
+					function makeRandomId() {
+						const outputField = document.getElementById("randomidfield");
+						const index = Math.round(Math.random() * 1048575);
+						const group = Math.round(Math.random() * 15);
+						const hexID = group.toString(16) + index.toString(16) + "0" + group.toString(16);
+						outputField.value = hexID;
+					}
+				</script>
+			</nav>
+			<content>
+				<table class="channeltable" id="channeltable">
+					<tr>
+						<th style="min-width:50px">Channel</th>
+						<th style="min-width:100px">Name</th>
+						<th style="min-width:100px">Serial</th>
+						<th style="min-width:50px">Counter</th>
+						<th style="min-width:100px">Configuration</th>
+						<th style="min-width:200px">Controls</th>
+					</tr>
+					<tr class="channelrow" id="channelrow_template">
+						<td name="channel">0</td>
+						<td><input name="name" type="text" value="new channel"/></td>
+						<td><input name="serial" type="text" value="00000000" onchange="verifyHexInput(this)"/></td>
+						<td name="countervalue">155</td>
+						<td>
+							<button name="deletebtn">Delete</button>
+							<button name="initbnt">Init</button>
+						</td>
+						<td>
+							<button name="cntrl_learn">Learn</button>
+							<button name="cntrl_up">Up</button>
+							<button name="cntrl_stop">Stop</button>
+							<button name="cntrl_down">Down</button>
+						</td>
+					</tr>
+					<tr class="newchannelrow">
+						<td><button onclick="addNewChannel()">Add channel</button></td>
+						<td></td>
+						<td></td>
+						<td></td>
+						<td></td>
+						<td></td>
+					</tr>
+				</table>
+				<script src="channeltable.js"></script>
+			</content>
+		</section>
+		
+	</body>
+</html>

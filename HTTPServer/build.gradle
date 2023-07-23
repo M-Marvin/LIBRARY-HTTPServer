@@ -1,0 +1,34 @@
+
+buildscript {
+    ext {
+        kotlin_version = '1.1.2-2'
+    }
+}
+
+plugins {
+	//id "com.github.johnrengelman.shadow" version "7.1.0"
+}
+
+apply plugin: 'java'
+
+repositories {
+	mavenCentral()
+	maven { url 'https://jitpack.io' }
+}
+
+configurations {
+    //shade
+    //implementation.extendsFrom shade
+}
+
+dependencies {
+	
+}
+
+jar {
+    manifest {
+        attributes 'Implementation-Version': '1.0'
+        attributes 'Implementation-Title': 'Simple HTTP-Server'
+        attributes 'Implementation-Vendor-Id': 'de.m_marvin'
+    }
+}
