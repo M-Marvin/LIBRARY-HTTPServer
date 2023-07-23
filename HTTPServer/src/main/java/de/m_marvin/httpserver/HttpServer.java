@@ -92,6 +92,7 @@ public class HttpServer {
 				if (!isLineBreak) {
 					lineBuffer.append(character);
 				} else {
+					reader.read();
 					break;
 				}
 			}
