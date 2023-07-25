@@ -1,29 +1,17 @@
 
-buildscript {
-    ext {
-        kotlin_version = '1.1.2-2'
-    }
-}
-
-plugins {
-	//id "com.github.johnrengelman.shadow" version "7.1.0"
-}
-
 apply plugin: 'java'
 apply plugin: 'maven-publish'
 
-repositories {
-	mavenCentral()
-	maven { url 'https://jitpack.io' }
-}
+group = 'com.github.M-Marvin'
+version = '1.2'
 
-configurations {
-    //shade
-    //implementation.extendsFrom shade
-}
-
-dependencies {
-	
+// Add additional content to the manifest
+tasks.named('jar') {
+    manifest {
+        attributes('Implementation-Title': project.name,
+                   'Implementation-Version': version,
+                   'Author': 'M_Marvin')
+    }
 }
 
 java {
@@ -38,10 +26,8 @@ publishing {
     }
 }
 
-jar {
-    manifest {
-        attributes 'Implementation-Version': '1.0'
-        attributes 'Implementation-Title': 'Simple HTTP-Server'
-        attributes 'Implementation-Vendor-Id': 'de.m_marvin'
-    }
+// Specify gradle version to use for jitpack
+wrapper {
+    gradleVersion = "7.4.2"
+    distributionType = Wrapper.DistributionType.ALL
 }
