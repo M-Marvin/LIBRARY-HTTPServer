@@ -1,0 +1,2 @@
+This is an example certificate to thest the HttpsServer.
+Generated with 'keytool -genkey -keyalg RSA -alias selfsigned -keystore keystore.pfx -validity 360 -keysize 2048 -deststoretype pkcs12'

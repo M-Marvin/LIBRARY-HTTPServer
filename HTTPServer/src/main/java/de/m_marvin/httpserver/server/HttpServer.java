@@ -1,9 +1,10 @@
-package de.m_marvin.httpserver;
+package de.m_marvin.httpserver.server;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -12,21 +13,32 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 
+import de.m_marvin.httpserver.HttpCode;
+import de.m_marvin.httpserver.HttpRequest;
+import de.m_marvin.httpserver.PathInfo;
+import de.m_marvin.httpserver.ResponseInfo;
+
 public class HttpServer {
 	
-	public static final long RECEPTION_TIMEOUT = 1500;
+	public static final int DEFAULT_RECEPTION_TIMEOUT = 1500;
 	
-	protected long receptionTimeout;
+	protected final int port;
+	protected final int receptionTimeout;
 	protected ServerSocket serverSocket;
-	protected boolean keepAliveActive;
 	protected Thread handleThread;
 	protected Socket currentSocket;
 	
-	public HttpServer(ServerSocket serverSocket) {
-		this.serverSocket = serverSocket;
+	public HttpServer(int port) {
+		this(port, DEFAULT_RECEPTION_TIMEOUT);
 	}
 	
-	public void open() {
+	public HttpServer(int port, int receptionTimeout) {
+		this.port = port;
+		this.receptionTimeout = receptionTimeout;
+	}
+	
+	public void open() throws IOException {
+		this.serverSocket = new ServerSocket(this.port);
 		this.handleThread = new Thread(this::handleRequests, "HTTP handler");
 		this.handleThread.setDaemon(true);
 		this.handleThread.start();
@@ -36,57 +48,46 @@ public class HttpServer {
 		this.serverSocket.close();
 	}
 	
-	public boolean isKeepAliveActive() {
-		return keepAliveActive;
-	}
-	
 	protected void handleRequests() {
 		while (!this.serverSocket.isClosed()) {
 			try {
 				if (this.currentSocket == null || this.currentSocket.isClosed()) {
 					this.currentSocket = this.serverSocket.accept();
-					this.keepAliveActive = false;
+					this.currentSocket.setSoTimeout(this.receptionTimeout);
 				}
-				String httpMessage = readPackageHeader();
-				if (httpMessage.isEmpty()) {
-					System.out.println("Ignored empty HTTP header!");
-				} else {
+				try {
+					String httpMessage = readPackageHeader();
 					byte[] responseMessage = handleMessage(httpMessage);
 					if (responseMessage != null) writePackage(responseMessage);
-				}
-				
-				/* if (!this.keepAliveActive) */ this.currentSocket.close(); // TODO When to terminate keep-alive ???
-			} catch (Exception e) {
-				if (!this.serverSocket.isClosed()) {
+				} catch (SocketTimeoutException e) {
+					System.err.println("Connection timeout!");
+					writePackage(makeMessage(HttpCode.BAD_REQUEST, "RECEPTION TIMEOUT", new HashMap<>(), Optional.empty()));
+				} catch (Exception e) {
 					System.err.println("Exception while handeling HTTP request!");
 					e.printStackTrace();
+				}
+				this.currentSocket.close();
+			} catch (Exception e) {
+				System.err.println("Exception while handeling ServerSocket!");
+				e.printStackTrace();
+				if (!this.serverSocket.isClosed()) {
 					try {
 						this.currentSocket.close();
 					} catch (IOException e1) {
+						System.err.println("Could not close ServerSocket!");
 						e1.printStackTrace();
 					}
 				}
 			}
 		}
-		System.out.println("Web-Server closed!");
-	}
-
-	protected boolean checkTimeout() {
-		if (System.currentTimeMillis() - this.receptionTimeout > RECEPTION_TIMEOUT) {
-			System.out.println("HTTP Reception timeout!");
-			return true;
-		}
-		return false;
 	}
 	
 	protected String readPackageHeader() throws IOException {
 		InputStream reader = this.currentSocket.getInputStream();
 		StringBuilder messageBuilder = new StringBuilder();
-		this.receptionTimeout = System.currentTimeMillis();
-		read_loop: while (!checkTimeout()) {
+		while (true) {
 			StringBuilder lineBuffer = new StringBuilder();
 			while (true) {
-				while (reader.available() == 0) if (checkTimeout()) break read_loop;
 				char character = (char) reader.read();
 				boolean isLineBreak = Pattern.matches("\\R", "" + character);
 				if (!isLineBreak) {
@@ -116,11 +117,7 @@ public class HttpServer {
 		this.currentSocket.getOutputStream().write(httpMessage);
 	}
 	
-	public static boolean isEmptyLine(String line) {
-		return line.isEmpty() || (line.length() == 1 && line.endsWith("\r"));
-	}
-	
-	public byte[] handleMessage(String httpMessage) throws IOException {
+	protected byte[] handleMessage(String httpMessage) throws IOException {
 		
 //		System.out.println("##########################");
 //		System.out.println(httpMessage);
@@ -136,7 +133,7 @@ public class HttpServer {
 		int i;
 		for (i = 1; i < messageLines.length; i++) {
 			String messageLine = messageLines[i];
-			if (isEmptyLine(messageLine)) break;
+			if (messageLine.isEmpty() || (messageLine.length() == 1 && messageLine.endsWith("\r"))) break;
 			String[] infoLine = messageLine.split(": ");
 			if (infoLine.length == 2) {
 				additionalInfo.put(infoLine[0], infoLine[1]);
@@ -153,12 +150,9 @@ public class HttpServer {
 		
 	}
 	
-	public Optional<byte[]> handleAdditionalInfo(Map<String, String> additionalInfo) throws IOException {
+	protected Optional<byte[]> handleAdditionalInfo(Map<String, String> additionalInfo) throws IOException {
 		Optional<byte[]> content = Optional.empty();
 		
-		if (additionalInfo.containsKey("Connection")) {
-			this.keepAliveActive = additionalInfo.get("Connection").equalsIgnoreCase("keep-alive");
-		}
 		if (additionalInfo.containsKey("Content-Length")) {
 			try {
 				int contentLength = Integer.parseInt(additionalInfo.get("Content-Length"));
@@ -171,7 +165,7 @@ public class HttpServer {
 		return content;
 	}
 	
-	public byte[] makeMessage(HttpCode code, String info, Map<String, String> additionalInfo, Optional<InputStream> content) {
+	protected byte[] makeMessage(HttpCode code, String info, Map<String, String> additionalInfo, Optional<InputStream> content) {
 		StringBuilder messageBuilder = new StringBuilder();
 		messageBuilder.append("HTTP/1.1 ").append(code.getCode()).append(" ").append(info).append("\r\n");
 		for (String key : additionalInfo.keySet()) {
@@ -200,7 +194,7 @@ public class HttpServer {
 		}
 	}
 	
-	public byte[] handleRequest(HttpRequest requestType, PathInfo resourcePath, String protocollTag, Optional<byte[]> content) {
+	protected byte[] handleRequest(HttpRequest requestType, PathInfo resourcePath, String protocollTag, Optional<byte[]> content) {
 		
 		try {
 			switch (requestType) {
