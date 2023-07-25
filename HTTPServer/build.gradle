@@ -10,6 +10,7 @@ plugins {
 }
 
 apply plugin: 'java'
+apply plugin: 'maven-publish'
 
 repositories {
 	mavenCentral()
@@ -27,6 +28,14 @@ dependencies {
 
 java {
     withSourcesJar()
+}
+
+publishing {
+    publications {
+        maven(MavenPublication) {
+			from components.java
+        }
+    }
 }
 
 jar {
