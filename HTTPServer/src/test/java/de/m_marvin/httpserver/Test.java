@@ -12,7 +12,7 @@ public class Test {
 	
 	public static final String HTML_FOLDER = "/web";
 	
-	public static void main(String[] args) throws URISyntaxException {
+	public static void main(String[] args) throws URISyntaxException, InterruptedException {
 		
 		File runDir = new File(Test.class.getProtectionDomain().getCodeSource().getLocation().toURI()).getParentFile();
 		File certificateFile = new File(runDir, "../run/keystore.pfx");
@@ -26,7 +26,9 @@ public class Test {
 			});
 			server.open();
 			
-			while (true);
+			Thread.sleep(1000);
+			
+			server.close();
 		} catch (IOException e) {
 			e.printStackTrace();
 		}

@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.util.HashMap;
 import java.util.Map;
@@ -68,6 +69,7 @@ public class HttpServer {
 				}
 				this.currentSocket.close();
 			} catch (Exception e) {
+				if (e instanceof SocketException && e.getMessage().equals("Socket closed")) return;
 				System.err.println("Exception while handeling ServerSocket!");
 				e.printStackTrace();
 				if (!this.serverSocket.isClosed()) {
