@@ -17,7 +17,6 @@ import java.util.regex.Pattern;
 import de.m_marvin.httpserver.HttpCode;
 import de.m_marvin.httpserver.HttpRequest;
 import de.m_marvin.httpserver.PathInfo;
-import de.m_marvin.httpserver.ResponseInfo;
 
 public class HttpServer {
 	

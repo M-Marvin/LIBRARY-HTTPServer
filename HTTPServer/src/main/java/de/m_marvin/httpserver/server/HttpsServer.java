@@ -7,6 +7,8 @@ import javax.net.ssl.SSLServerSocketFactory;
 
 public class HttpsServer extends HttpServer {
 	
+	public static final int DEFAULT_HTTPS_PORT = 443;
+	
 	public HttpsServer(int port) {
 		super(port);
 	}

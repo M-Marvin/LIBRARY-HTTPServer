@@ -1,5 +1,10 @@
 package de.m_marvin.httpserver;
 
+/**
+ * The possible request types to the server.
+ * @author Marvin Koehler
+ *
+ */
 public enum HttpRequest {
 	
 	GET("GET"),

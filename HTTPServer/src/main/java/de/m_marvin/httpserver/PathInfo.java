@@ -7,6 +7,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 
+/**
+ * The URL path for an http request, contains path, query values and the fragment name.
+ * @author Marvin Koehler
+ *
+ */
 public class PathInfo {
 	
 	public String path;

@@ -7,6 +7,7 @@ import java.net.URISyntaxException;
 
 import de.m_marvin.httpserver.server.HttpServer;
 import de.m_marvin.httpserver.server.HttpsServer;
+import de.m_marvin.httpserver.server.ResponseInfo;
 
 public class Test {
 	

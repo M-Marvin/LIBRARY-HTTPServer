@@ -1,9 +1,11 @@
-package de.m_marvin.httpserver;
+package de.m_marvin.httpserver.server;
 
 import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+
+import de.m_marvin.httpserver.HttpCode;
 
 public class ResponseInfo {
 	

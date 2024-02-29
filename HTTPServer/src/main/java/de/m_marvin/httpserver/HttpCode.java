@@ -1,5 +1,11 @@
 package de.m_marvin.httpserver;
 
+/**
+ * The possible status codes send from the server.
+ * @author Marvin Koehler
+ *
+ */
+
 public enum HttpCode {
 	
 	OK("OK", 200),
