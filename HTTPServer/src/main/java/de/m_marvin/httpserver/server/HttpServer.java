@@ -17,6 +17,7 @@ import java.util.regex.Pattern;
 import de.m_marvin.httpserver.HttpCode;
 import de.m_marvin.httpserver.HttpRequest;
 import de.m_marvin.httpserver.PathInfo;
+import de.m_marvin.simplelogging.Log;
 
 public class HttpServer {
 	
@@ -26,7 +27,6 @@ public class HttpServer {
 	protected final int receptionTimeout;
 	protected ServerSocket serverSocket;
 	protected Thread handleThread;
-	protected Socket currentSocket;
 	
 	public HttpServer(int port) {
 		this(port, DEFAULT_RECEPTION_TIMEOUT);
@@ -51,40 +51,45 @@ public class HttpServer {
 	protected void handleRequests() {
 		while (!this.serverSocket.isClosed()) {
 			try {
-				if (this.currentSocket == null || this.currentSocket.isClosed()) {
-					this.currentSocket = this.serverSocket.accept();
-					this.currentSocket.setSoTimeout(this.receptionTimeout);
-				}
-				try {
-					String httpMessage = readPackageHeader();
-					byte[] responseMessage = handleMessage(httpMessage);
-					if (responseMessage != null) writePackage(responseMessage);
-				} catch (SocketTimeoutException e) {
-					System.err.println("Connection timeout!");
-					writePackage(makeMessage(HttpCode.BAD_REQUEST, "RECEPTION TIMEOUT", new HashMap<>(), Optional.empty()));
-				} catch (Exception e) {
-					System.err.println("Exception while handeling HTTP request!");
-					e.printStackTrace();
-				}
-				this.currentSocket.close();
-			} catch (Exception e) {
-				if (e instanceof SocketException && e.getMessage().equals("Socket closed")) return;
-				System.err.println("Exception while handeling ServerSocket!");
-				e.printStackTrace();
-				if (!this.serverSocket.isClosed()) {
-					try {
-						this.currentSocket.close();
-					} catch (IOException e1) {
-						System.err.println("Could not close ServerSocket!");
-						e1.printStackTrace();
-					}
-				}
+				Socket clientSocket = this.serverSocket.accept();
+				Thread clientHandlerThread = new Thread(() -> handleClient(clientSocket), "Handler-Thread");
+				clientHandlerThread.setDaemon(true);
+				clientHandlerThread.start();
+			} catch (IOException e) {
+				if (!this.serverSocket.isClosed())
+					Log.defaultLogger().error("IOException while accepting request!", e);
 			}
 		}
 	}
 	
-	protected String readPackageHeader() throws IOException {
-		InputStream reader = this.currentSocket.getInputStream();
+	protected void handleClient(Socket currentSocket) {
+		try {
+			currentSocket.setSoTimeout(this.receptionTimeout);
+			String httpMessage = readPackageHeader(currentSocket);
+			byte[] responseMessage = handleMessage(httpMessage, currentSocket);
+			if (responseMessage != null) writePackage(responseMessage, currentSocket);
+		} catch (SocketTimeoutException e) {
+			try {
+				writePackage(makeMessage(HttpCode.BAD_REQUEST, "RECEPTION TIMEOUT", new HashMap<>(), Optional.empty()), currentSocket);
+			} catch (IOException e1) {
+				Log.defaultLogger().error("Failed to send timeout response!", e1);
+			}
+		} catch (SocketException e) {
+			Log.defaultLogger().error("SocketException while handeling ServerSocket!", e);
+		} catch (IOException e) {
+			Log.defaultLogger().error("IOException on socket occured!", e);
+		} finally {
+			try {
+				currentSocket.close();
+			} catch (IOException e) {
+				Log.defaultLogger().error("Could not close ServerSocket!", e);
+			}
+		}
+		
+	}
+	
+	protected String readPackageHeader(Socket currentSocket) throws IOException {
+		InputStream reader = currentSocket.getInputStream();
 		StringBuilder messageBuilder = new StringBuilder();
 		while (true) {
 			StringBuilder lineBuffer = new StringBuilder();
@@ -108,20 +113,17 @@ public class HttpServer {
 		return messageBuilder.toString();
 	}
 	
-	protected byte[] readPackageContent(int bytes) throws IOException {
+	protected byte[] readPackageContent(int bytes, Socket currentSocket) throws IOException {
 		byte[] contentBytes = new byte[bytes];
-		this.currentSocket.getInputStream().read(contentBytes);
+		currentSocket.getInputStream().read(contentBytes);
 		return contentBytes;
 	}
 	
-	protected void writePackage(byte[] httpMessage) throws IOException {
-		this.currentSocket.getOutputStream().write(httpMessage);
+	protected void writePackage(byte[] httpMessage, Socket currentSocket) throws IOException {
+		currentSocket.getOutputStream().write(httpMessage);
 	}
 	
-	protected byte[] handleMessage(String httpMessage) throws IOException {
-		
-//		System.out.println("##########################");
-//		System.out.println(httpMessage);
+	protected byte[] handleMessage(String httpMessage, Socket currentSocket) throws IOException {
 		
 		String[] messageLines = httpMessage.split("\\R");
 		String[] headerLine = messageLines[0].split(" ");
@@ -139,11 +141,11 @@ public class HttpServer {
 			if (infoLine.length == 2) {
 				additionalInfo.put(infoLine[0], infoLine[1]);
 			} else {
-				System.err.println("Received invalid http header info line: " + messageLine);
+				Log.defaultLogger().error("Received invalid http header info line: " + messageLine);
 			}
 		}
 		
-		Optional<byte[]> content = handleAdditionalInfo(additionalInfo);
+		Optional<byte[]> content = handleAdditionalInfo(additionalInfo, currentSocket);
 		
 		byte[] response = handleRequest(requestType, resourcePath, protocollTag, content);
 		
@@ -151,15 +153,15 @@ public class HttpServer {
 		
 	}
 	
-	protected Optional<byte[]> handleAdditionalInfo(Map<String, String> additionalInfo) throws IOException {
+	protected Optional<byte[]> handleAdditionalInfo(Map<String, String> additionalInfo, Socket currentSocket) throws IOException {
 		Optional<byte[]> content = Optional.empty();
 		
 		if (additionalInfo.containsKey("Content-Length")) {
 			try {
 				int contentLength = Integer.parseInt(additionalInfo.get("Content-Length"));
-				content = Optional.of(readPackageContent(contentLength));
+				content = Optional.of(readPackageContent(contentLength, currentSocket));
 			} catch (NumberFormatException e) {
-				System.err.println("Received invalid argument for Content-Length: " + additionalInfo.get("Content-Length"));
+				Log.defaultLogger().error("Received invalid argument for Content-Length: " + additionalInfo.get("Content-Length"));
 			}
 		}
 		
@@ -210,19 +212,19 @@ public class HttpServer {
 			case DELETE:
 				return handleDelete(resourcePath);
 			default:
-				System.err.println("Received invalid HTTP package!");
-				return makeMessage(HttpCode.NOT_SUPPORTED, "Invalid request", new HashMap<>(), Optional.empty());
+				Log.defaultLogger().error("Received invalid HTTP package!");
+				return makeMessage(HttpCode.NOT_IMPLEMENTED, "Invalid request", new HashMap<>(), Optional.empty());
 			}
 		} catch (NoSuchElementException e) {
-			System.err.println("Received " + requestType.toString() + " without any data!");
+			Log.defaultLogger().error("Received " + requestType.toString() + " without any data!");
 			return makeMessage(HttpCode.BAD_REQUEST, "Missing data-body in message", new HashMap<>(), Optional.empty());
 		}
 		
 	}
 	
 	protected byte[] makeNoHandlerMessage() {
-		System.err.println("Could not handle request!");
-		return makeMessage(HttpCode.NOT_SUPPORTED, "Not supported", new HashMap<>(), Optional.empty());
+		Log.defaultLogger().error("Could not handle request!");
+		return makeMessage(HttpCode.NOT_IMPLEMENTED, "Not supported", new HashMap<>(), Optional.empty());
 	}
 	
 	protected Function<PathInfo, ResponseInfo> getHandler;

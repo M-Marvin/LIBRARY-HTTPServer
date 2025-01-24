@@ -1,11 +1,10 @@
 
-apply plugin: 'java'
+apply plugin: 'java-library'
 apply plugin: 'maven-publish'
 
 group = 'com.github.M-Marvin'
-version = '1.1'
+version = '1.1.2'
 
-// Add additional content to the manifest
 tasks.named('jar') {
     manifest {
         attributes('Implementation-Title': project.name,
@@ -14,20 +13,48 @@ tasks.named('jar') {
     }
 }
 
+repositories {
+	mavenCentral()
+	maven {
+		url 'https://maven.pkg.github.com/m-marvin/library-simplelogging'
+		credentials {
+            username = project.findProperty("gpr.user") ?: System.getenv("GITHUB_ACTOR")
+            password = project.findProperty("gpr.key") ?: System.getenv("GITHUB_TOKEN")
+        }
+	}
+	mavenLocal()
+}
+
+dependencies {
+	
+	// SimpleLogging
+	api 'de.m_marvin.simplelogging:simplelogging:2.1.3'
+	
+}
+
 java {
+	sourceCompatibility = "1.17"
+	targetCompatibility = "1.17"
     withSourcesJar()
 }
 
 publishing {
+    repositories {
+        maven {
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/m-marvin/library-httpserver")
+            credentials {
+                username = project.findProperty("gpr.user") ?: System.getenv("GITHUB_ACTOR")
+                password = project.findProperty("gpr.key") ?: System.getenv("GITHUB_TOKEN")
+            }
+        }
+    }
     publications {
         maven(MavenPublication) {
+            groupId = 'de.m_marvin.httpserver'
+        	artifactId = "httpserver"
+        	
 			from components.java
         }
     }
-}
-
-// Specify gradle version to use for jitpack
-wrapper {
-    gradleVersion = "7.4.2"
-    distributionType = Wrapper.DistributionType.ALL
 }

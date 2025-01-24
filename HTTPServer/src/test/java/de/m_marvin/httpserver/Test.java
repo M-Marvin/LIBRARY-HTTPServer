@@ -19,15 +19,15 @@ public class Test {
 		File certificateFile = new File(runDir, "../run/keystore.pfx");
 		
 		try {
-			//HttpServer server = new HttpServer(80);
-			HttpServer server = new HttpsServer(443, certificateFile, "password");
+			HttpServer server = new HttpServer(80);
+			//HttpServer server = new HttpsServer(443, certificateFile, "password");
 			server.setGetHandler(page -> {
 				InputStream pageSource = Test.class.getResourceAsStream(HTML_FOLDER + page.getPath());
 				return new ResponseInfo(pageSource == null ? HttpCode.NOT_FOUND : HttpCode.OK, pageSource == null ? "Not found!" : "OK", pageSource);
 			});
 			server.open();
 			
-			Thread.sleep(1000);
+			Thread.sleep(100000);
 			
 			server.close();
 		} catch (IOException e) {
