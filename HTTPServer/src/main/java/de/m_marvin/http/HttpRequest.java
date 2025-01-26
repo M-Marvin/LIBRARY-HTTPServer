@@ -1,4 +1,4 @@
-package de.m_marvin.httpserver;
+package de.m_marvin.http;
 
 /**
  * The possible request types to the server.

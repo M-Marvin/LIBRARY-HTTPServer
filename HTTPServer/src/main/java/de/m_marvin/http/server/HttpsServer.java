@@ -1,4 +1,4 @@
-package de.m_marvin.httpserver.server;
+package de.m_marvin.http.server;
 
 import java.io.File;
 import java.io.IOException;

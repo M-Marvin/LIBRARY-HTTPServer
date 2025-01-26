@@ -1,4 +1,4 @@
-package de.m_marvin.httpserver;
+package de.m_marvin.http;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;

@@ -1,4 +1,4 @@
-package de.m_marvin.httpserver;
+package de.m_marvin.http;
 
 /**
  * The possible status codes send from the server.
@@ -9,7 +9,7 @@ package de.m_marvin.httpserver;
 public enum HttpCode {
 	
 	CONTINUE("Continue", 100),
-	SWITCHING_PROTOCOLLS("Switching Protocolls", 101),
+	SWITCHING_PROTOCOLS("Switching Protocols", 101),
 	PROCESSING("Processing", 102),
 	EARLY_HINTS("Early Hints", 103),
 	
@@ -84,12 +84,18 @@ public enum HttpCode {
 		this.code = code;
 	}
 	
-	public int getCode() {
+	public int code() {
 		return code;
 	}
 	
 	public String getName() {
 		return name;
+	}
+	
+	public static HttpCode of(int code) {
+		for (HttpCode e : values())
+			if (e.code() == code) return e;
+		return null;
 	}
 	
 }
