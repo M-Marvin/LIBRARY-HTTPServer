@@ -214,7 +214,7 @@ public class WebSocket {
 								reason = Arrays.copyOfRange(data, 2, data.length);
 						}
 						// Echo close if not previously send a close frame
-						if (!this.rxclosing) {
+						if (!this.txclosed) {
 							sendClose(statusCode, reason);
 						}
 						this.rxclosing = true;
@@ -472,7 +472,7 @@ public class WebSocket {
 	 */
 	public void sendCloseAndWait(WebSocketCode statusCode, byte[] reason, TimeUnit unit, int timeout) throws InterruptedException {
 		sendClose(statusCode, reason);
-		this.transmitter.join(unit.toMillis(timeout));
+		this.transmitter.join(unit.toMillis(timeout)); // Transmitter should instantly die after sending a close frame, but just to be safe, include an timeout here too.
 		this.receptor.join(unit.toMillis(timeout));
 	}
 
