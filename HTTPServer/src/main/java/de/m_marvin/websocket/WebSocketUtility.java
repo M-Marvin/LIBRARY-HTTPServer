@@ -1,6 +1,5 @@
 package de.m_marvin.websocket;
 
-import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -8,7 +7,7 @@ import java.util.Base64;
 import java.util.Map;
 
 import de.m_marvin.http.HttpCode;
-import de.m_marvin.http.server.ResponseInfo;
+import de.m_marvin.http.ResponseInfo;
 import de.m_marvin.simplelogging.Log;
 
 public class WebSocketUtility {
@@ -19,7 +18,7 @@ public class WebSocketUtility {
 	 * Utility method for testing if an HTTP request can be upgraded to an WebSocket connection.<br>
 	 * Returns the required response info, when the status code equals 101, the connection can be upgraded after the response is processed by the client.
 	 */
-	public static ResponseInfo verifyUpgradeHttpSocket(Socket socket, Map<String, String> httpAttributes, String subProtocolUsed) {
+	public static ResponseInfo verifyUpgradeHttpSocket(Map<String, String> httpAttributes, String subProtocolUsed) {
 		
 		String upgrade = httpAttributes.get("Upgrade");
 		String connection = httpAttributes.get("Connection");
@@ -52,8 +51,7 @@ public class WebSocketUtility {
 				.addAdditionalInfo("Upgrade", upgrade)
 				.addAdditionalInfo("Connection", connection)
 				.addAdditionalInfo("Sec-WebSocket-Accept", serverKey)
-				.addAdditionalInfo("Sec-WebSocket-Protocol", subProtocolUsed)
-				.keepSocket();
+				.addAdditionalInfo("Sec-WebSocket-Protocol", subProtocolUsed);
 		
 	}
 	

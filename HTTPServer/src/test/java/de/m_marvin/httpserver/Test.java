@@ -8,8 +8,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 import de.m_marvin.http.HttpCode;
+import de.m_marvin.http.ResponseInfo;
 import de.m_marvin.http.server.HttpServer;
-import de.m_marvin.http.server.ResponseInfo;
 import de.m_marvin.websocket.WebSocket;
 import de.m_marvin.websocket.WebSocketCode;
 import de.m_marvin.websocket.WebSocketUtility;
@@ -26,19 +26,19 @@ public class Test {
 		try {
 			HttpServer server = new HttpServer(80);
 			//HttpServer server = new HttpsServer(443, certificateFile, "password");
-			server.setGetHandler((socket, path, attributes) -> {
+			server.setGetHandler((path, attributes) -> {
 				
 				if (path.getPath().startsWith("/websock")) {
 					
-					ResponseInfo response = WebSocketUtility.verifyUpgradeHttpSocket(socket, attributes, "logs");
+					ResponseInfo response = WebSocketUtility.verifyUpgradeHttpSocket(attributes, "logs");
 					
 					if (response.getResponseCode() == HttpCode.SWITCHING_PROTOCOLS) {
 
-						CompletableFuture.runAsync(() -> {
+						response.keepSocket().thenAccept(socket -> {
 							
 							try {
 								
-								WebSocket webSocket = new WebSocket(socket);
+								WebSocket webSocket = new WebSocket(socket, true);
 								String line = webSocket.readLine();
 								System.out.println(line);
 								String pong = new String(webSocket.sendPing("PING PING".getBytes()).orTimeout(1, TimeUnit.SECONDS).join());

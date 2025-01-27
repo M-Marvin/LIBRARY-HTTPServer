@@ -48,7 +48,6 @@ public class WebSocket {
 	private final int txframesize;
 	private final boolean txmasking;
 	private boolean txflush = false;
-	private boolean txfinal = false;
 	private boolean frameOutgoing = false;
 	private boolean textIncomming = false;
 	private boolean txclosed = false;
@@ -57,6 +56,9 @@ public class WebSocket {
 	private final Object txlock;
 	private final Queue<ControlFrame> txcontrol = new ArrayDeque<WebSocket.ControlFrame>();
 	private CompletableFuture<byte[]> pendingPing = null;
+	private final boolean logverbose;
+	private WebSocketCode closeCode = null;
+	private byte[] closeReason = null;
 	
 	private static record ControlFrame(OPC op, byte[] data) {}
 	
@@ -90,11 +92,25 @@ public class WebSocket {
 		
 	}
 	
-	public WebSocket(Socket socket) throws IOException {
-		this(socket, 0x2800, false);
+	/**
+	 * Constructs a new WebSocket by upgrading the supplied Socket.
+	 * @param socket The underlying socket to use
+	 * @param logverbose If interrupted connections without an clean WebSocket Close should be printed as errors to the logger
+	 * @throws IOException If the Streams of the sockets could not be gathered
+	 */
+	public WebSocket(Socket socket, boolean logverbose) throws IOException {
+		this(socket, 0x2800, false, logverbose);
 	}
 	
-	public WebSocket(Socket socket, int framesize, boolean masking) throws IOException {
+	/**
+	 * Constructs a new WebSocket by upgrading the supplied Socket.
+	 * @param socket The underlying socket to use
+	 * @param framesize The frame size of transmitted packages, new fragments are sent if the buffer gets filled up to this ammount ot flush() is called
+	 * @param masking If outgoing packages should be masked, has to be false for web-clients, but can be true for peer to peer connections
+	 * @param logverbose If interrupted connections without an clean WebSocket Close should be printed as errors to the logger
+	 * @throws IOException If the Streams of the sockets could not be gathered
+	 */
+	public WebSocket(Socket socket, int framesize, boolean masking, boolean logverbose) throws IOException {
 		if (socket.isClosed())
 			throw new IllegalStateException("Socket Closed!");
 		this.socket = socket;
@@ -124,6 +140,7 @@ public class WebSocket {
 		this.receptor.start();
 		this.transmitter.start();
 		this.txlock = txinPipe;
+		this.logverbose = logverbose;
 	}
 
 	// THESE VALUES WHERE SLEECTED BY WHAT SEEMED REASONABLE
@@ -206,16 +223,15 @@ public class WebSocket {
 					switch (op) {
 					case CLOSE:
 						// Check payload
-						WebSocketCode statusCode = null;
-						byte[] reason = null;
+						this.closeCode = null;
 						if (data.length >= 2 && payLen <= MAX_STATUS_MESSAGE) {
-							statusCode = WebSocketCode.of((((int) data[0]) << 8) | ((int) data[1]));
-							if (statusCode != null) 
-								reason = Arrays.copyOfRange(data, 2, data.length);
+							this.closeCode = WebSocketCode.of((((int) data[0]) << 8) | ((int) data[1]));
+							if (this.closeCode != null) 
+								this.closeReason = Arrays.copyOfRange(data, 2, data.length);
 						}
 						// Echo close if not previously send a close frame
 						if (!this.txclosed) {
-							sendClose(statusCode, reason);
+							sendClose(this.closeCode, this.closeReason);
 						}
 						this.rxclosing = true;
 						continue;
@@ -280,7 +296,7 @@ public class WebSocket {
 		} catch (IOException e) {
 			// Frame Error
 			sendClose(WebSocketCode.UNEXPECTED_ERROR, "unexpected reception error!".getBytes(StandardCharsets.UTF_8));
-			Log.defaultLogger().error("WebSocket RX IOExcpetion!", e);
+			if (this.logverbose) Log.defaultLogger().error("WebSocket RX IOExcpetion: Socket %s", this.socket.getInetAddress().toString(), e);
 		} finally {
 			try {
 				rxout.close();
@@ -340,10 +356,10 @@ public class WebSocket {
 					}
 					
 					// Detect last fragment by checking flush flag
-					boolean finalFragment = cf != null || (this.txfinal && txin.available() == 0);
+					boolean finalFragment = cf != null || txin.available() == 0;
 					
 					// Reset final if buffer empty
-					if (cf == null && finalFragment) this.txfinal = false;
+					//if (cf == null && finalFragment) this.txfinal = false;
 					
 					// Send fragment start
 					int frameStart = 0;
@@ -354,15 +370,15 @@ public class WebSocket {
 					// Send payload length
 					int payload = this.txmasking ? 0x80 : 0x0;
 					if (payLen < 126) {
-						payload |= payLen & 0x7F;
+						payload |= payLen;
 						this.txs.write(payload);
 					} else if (payLen < 0xFFFF) {
-						payload |= 0xFC;
+						payload |= 0x7E;
 						this.txs.write(payload);
 						this.txs.write((payLen >> 8) & 0xFF);
 						this.txs.write((payLen >> 0) & 0xFF);
 					} else {
-						payload |= 0xFE;
+						payload |= 0x7F;
 						this.txs.write(payload);
 						this.txs.write((payLen >> 56) & 0xFF);
 						this.txs.write((payLen >> 48) & 0xFF);
@@ -393,7 +409,7 @@ public class WebSocket {
 				}
 			}
 		} catch (IOException e) {
-			Log.defaultLogger().error("WebSocket TX IOExcpetion!", e);
+			if (this.logverbose) Log.defaultLogger().error("WebSocket TX IOExcpetion: Socket %s", this.socket.getInetAddress().toString(), e);
 		} finally {
 			try {
 				txin.close();
@@ -544,14 +560,6 @@ public class WebSocket {
 		this.textIncomming = holdsUTF8;
 	}
 	
-	/**
-	 * Marks the next send fragment as final fragment, terminating one data-frame.
-	 * To guarantee that the last fragment is marked as final, this has to be called immediately before writing the last byte.
-	 */
-	public void markFinal() {
-		this.txfinal = true;
-	}
-	
 	public OutputStream getOutputStream() {
 		return this.txin;
 	}
@@ -564,16 +572,25 @@ public class WebSocket {
 		return this.txframesize;
 	}
 
+	public WebSocketCode getCloseCode() {
+		return closeCode;
+	}
+	
+	public byte[] getCloseReason() {
+		return closeReason;
+	}
+	
+	public String getCloseReasonUTF() {
+		return this.closeReason == null ? null : new String(this.closeReason, StandardCharsets.UTF_8);
+	}
+	
 	/**
 	 * Utility method for sending binary data as one (potentially fragmented) terminated finalized package.
 	 * @param text The data to send
 	 * @throws IOException 
 	 */
 	public void sendBinary(byte[] data) throws IOException {
-		for (int i = 0; i < data.length; i++) {
-			if (i == data.length - 1) markFinal();
-			getOutputStream().write((int) data[i]);
-		}
+		getOutputStream().write(data);
 		getOutputStream().flush();
 	}
 	

@@ -1,11 +1,11 @@
-package de.m_marvin.http.server;
+package de.m_marvin.http;
 
 import java.io.InputStream;
+import java.net.Socket;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
-
-import de.m_marvin.http.HttpCode;
+import java.util.concurrent.CompletableFuture;
 
 public class ResponseInfo {
 	
@@ -13,7 +13,7 @@ public class ResponseInfo {
 	protected String responseMessage;
 	protected Map<String, String> attributes = new LinkedHashMap<>();
 	protected Optional<InputStream> contentSource;
-	protected boolean keepSocket = false;
+	protected CompletableFuture<Socket> keepSocket = null;
 	
 	public ResponseInfo(HttpCode code, String message, InputStream contentSource) {
 		this.responseCode = code;
@@ -26,9 +26,9 @@ public class ResponseInfo {
 		return this;
 	}
 	
-	public ResponseInfo keepSocket() {
-		this.keepSocket = true;
-		return this;
+	public CompletableFuture<Socket> keepSocket() {
+		this.keepSocket = new CompletableFuture<Socket>();
+		return this.keepSocket;
 	}
 	
 	public HttpCode getResponseCode() {
@@ -47,8 +47,10 @@ public class ResponseInfo {
 		return contentSource;
 	}
 	
-	public boolean isKeepSocket() {
-		return keepSocket;
+	public boolean freeSocket(Socket socket) {
+		if (this.keepSocket == null) return true;
+		this.keepSocket.complete(socket);
+		return false;
 	}
 	
 }

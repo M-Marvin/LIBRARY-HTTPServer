@@ -15,6 +15,7 @@ import java.util.regex.Pattern;
 import de.m_marvin.http.HttpCode;
 import de.m_marvin.http.HttpRequest;
 import de.m_marvin.http.PathInfo;
+import de.m_marvin.http.ResponseInfo;
 import de.m_marvin.simplelogging.Log;
 
 public class HttpServer {
@@ -64,7 +65,7 @@ public class HttpServer {
 		try {
 			currentSocket.setSoTimeout(this.receptionTimeout);
 			String requestHeader = readPackageHeader(currentSocket);
-			ResponseInfo response = handleMessage(requestHeader, currentSocket);
+			ResponseInfo response = handleMessage(requestHeader);
 			if (response != null) {
 				String responseHeader = makeMessage(response.getResponseCode(), response.getResponseMessage(), response.getAttributes());
 				writePackageHeader(currentSocket, responseHeader);
@@ -80,7 +81,7 @@ public class HttpServer {
 			// Prevent the socket from being closed if the application requests it.
 			// From this point onward, all control over this socket is transfered to the application.
 			// No further attempts to close, send or write to/from this socket will be made by the HTTP server!
-			if (response.isKeepSocket()) currentSocket = null;
+			if (!response.freeSocket(currentSocket)) currentSocket = null;
 		} catch (SocketTimeoutException e) {
 			try {
 				writePackageHeader(currentSocket, makeMessage(HttpCode.BAD_REQUEST, "Reception Timeout", new HashMap<>()));
@@ -129,7 +130,7 @@ public class HttpServer {
 		currentSocket.getOutputStream().write(header.getBytes(StandardCharsets.UTF_8));
 	}
 	
-	protected ResponseInfo handleMessage(String httpMessage, Socket currentSocket) throws IOException {
+	protected ResponseInfo handleMessage(String httpMessage) throws IOException {
 		
 		String[] messageLines = httpMessage.split("\\R");
 		String[] headerLine = messageLines[0].split(" ");
@@ -151,15 +152,15 @@ public class HttpServer {
 			}
 		}
 		
-		int payloadLen = getPayloadLength(attributes, currentSocket);
+		int payloadLen = getPayloadLength(attributes);
 		
-		ResponseInfo response = handleRequest(currentSocket, requestType, resourcePath, attributes, payloadLen, protocollTag);
+		ResponseInfo response = handleRequest(requestType, resourcePath, attributes, payloadLen, protocollTag);
 		
 		return response;
 		
 	}
 	
-	protected int getPayloadLength(Map<String, String> additionalInfo, Socket currentSocket) throws IOException {
+	protected int getPayloadLength(Map<String, String> additionalInfo) throws IOException {
 		if (additionalInfo.containsKey("Content-Length")) {
 			try {
 				return Integer.parseInt(additionalInfo.get("Content-Length"));
@@ -180,18 +181,18 @@ public class HttpServer {
 		return messageBuilder.toString();
 	}
 	
-	protected ResponseInfo handleRequest(Socket socket, HttpRequest requestType, PathInfo resourcePath, Map<String, String> attributes, int payloadLen, String protocollTag) {
+	protected ResponseInfo handleRequest(HttpRequest requestType, PathInfo resourcePath, Map<String, String> attributes, int payloadLen, String protocollTag) {
 		switch (requestType) {
 		case GET:
-			return handleGet(socket, resourcePath, attributes, false);
+			return handleGet(resourcePath, attributes, false);
 		case HEADER:
-			return handleGet(socket, resourcePath, attributes, true);
+			return handleGet(resourcePath, attributes, true);
 		case PUT:
-			return handlePut(socket, resourcePath, attributes, payloadLen);
+			return handlePut(resourcePath, attributes, payloadLen);
 		case POST:
-			return handlePost(socket, resourcePath, attributes, payloadLen);
+			return handlePost(resourcePath, attributes, payloadLen);
 		case DELETE:
-			return handleDelete(socket, resourcePath, attributes);
+			return handleDelete(resourcePath, attributes);
 		default:
 			Log.defaultLogger().error("Received invalid HTTP package!");
 			return new ResponseInfo(HttpCode.BAD_REQUEST, "Invalid Method", null);
@@ -200,17 +201,17 @@ public class HttpServer {
 	
 	@FunctionalInterface
 	public static interface GetRequestHandler {
-		public ResponseInfo handleRequest(Socket socket, PathInfo path, Map<String, String> attributes);
+		public ResponseInfo handleRequest(PathInfo path, Map<String, String> attributes);
 	}
 
 	@FunctionalInterface
 	public static interface PutRequestHandler {
-		public ResponseInfo handleRequest(Socket socket, PathInfo path, Map<String, String> attributes, int contentLength);
+		public ResponseInfo handleRequest(PathInfo path, Map<String, String> attributes, int contentLength);
 	}
 
 	@FunctionalInterface
 	public static interface DelRequestHandler {
-		public ResponseInfo handleRequest(Socket socket, PathInfo path, Map<String, String> attributes);
+		public ResponseInfo handleRequest(PathInfo path, Map<String, String> attributes);
 	}
 	
 	protected GetRequestHandler getHandler;
@@ -237,24 +238,24 @@ public class HttpServer {
 		this.putHandler = putHandler;
 	}
 	
-	public ResponseInfo handleGet(Socket socket, PathInfo resourcePath, Map<String, String> attributes, boolean onlyHeader) {
+	public ResponseInfo handleGet(PathInfo resourcePath, Map<String, String> attributes, boolean onlyHeader) {
 		if (this.getHandler == null) return new ResponseInfo(HttpCode.NOT_IMPLEMENTED, "No Handler", null);
-		return this.getHandler.handleRequest(socket, resourcePath, attributes);
+		return this.getHandler.handleRequest(resourcePath, attributes);
 	}
 	
-	public ResponseInfo handlePost(Socket socket, PathInfo resourcePath, Map<String, String> attributes, int contentLength) {
+	public ResponseInfo handlePost(PathInfo resourcePath, Map<String, String> attributes, int contentLength) {
 		if (this.postHandler == null) return new ResponseInfo(HttpCode.NOT_IMPLEMENTED, "No Handler", null);
-		return this.postHandler.handleRequest(socket, resourcePath, attributes, contentLength);
+		return this.postHandler.handleRequest(resourcePath, attributes, contentLength);
 	}
 	
-	public ResponseInfo handlePut(Socket socket, PathInfo resourcePath, Map<String, String> attributes, int contentLength) {
+	public ResponseInfo handlePut(PathInfo resourcePath, Map<String, String> attributes, int contentLength) {
 		if (this.putHandler == null) return new ResponseInfo(HttpCode.NOT_IMPLEMENTED, "No Handler", null);
-		 return this.putHandler.handleRequest(socket, resourcePath, attributes, contentLength);
+		 return this.putHandler.handleRequest(resourcePath, attributes, contentLength);
 	}
 	
-	public ResponseInfo handleDelete(Socket socket, PathInfo resourcePath, Map<String, String> attributes) {
+	public ResponseInfo handleDelete(PathInfo resourcePath, Map<String, String> attributes) {
 		if (this.deleteHandler == null) return new ResponseInfo(HttpCode.NOT_IMPLEMENTED, "No Handler", null);
-		return this.deleteHandler.handleRequest(socket, resourcePath, attributes);
+		return this.deleteHandler.handleRequest(resourcePath, attributes);
 	}
 	
 }
