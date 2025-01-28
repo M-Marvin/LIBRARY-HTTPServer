@@ -119,7 +119,7 @@ public class WebSocket {
 		this.rxout = new PipedInputStream() {
 			@Override
 			public synchronized int available() throws IOException {
-				return (int) Math.max(WebSocket.this.rxavailable, Integer.MAX_VALUE);
+				return (int) Math.min(WebSocket.this.rxavailable, Integer.MAX_VALUE);
 			}
 		};
 		this.txin = new PipedOutputStream() {
@@ -234,6 +234,8 @@ public class WebSocket {
 							sendClose(this.closeCode, this.closeReason);
 						}
 						this.rxclosing = true;
+						// Call close listener
+						if (this.closeListener != null) this.closeListener.onClose(this.closeCode, this.closeReason);
 						continue;
 					case PING:
 						sendPong(data);
@@ -283,8 +285,11 @@ public class WebSocket {
 					rxout.flush();
 					
 					// Terminate Frame if FIN
-					if (finalFragment)
+					if (finalFragment) {
 						this.frameIncomming = false;
+						// Call listener
+						if (this.dataListener != null) this.dataListener.onText(this.rxout.available(), this.textIncomming);
+					}
 					
 				} catch (SocketTimeoutException e) {
 					// Frame Error
@@ -641,6 +646,29 @@ public class WebSocket {
 			buf.append((char) i);
 		}
 		return buf.toString();
+	}
+
+	/* Listener implementation, these are run on the reception thread, so no long blocking code in these */
+	
+	@FunctionalInterface
+	public static interface CloseListener {
+		public void onClose(WebSocketCode code, byte[] reason);
+	}
+	
+	@FunctionalInterface
+	public static interface DataListener {
+		public void onText(int available, boolean isUTF);
+	}
+	
+	private CloseListener closeListener;
+	private DataListener dataListener;
+	
+	public void setCloseCode(WebSocketCode closeCode) {
+		this.closeCode = closeCode;
+	}
+	
+	public void setDataListener(DataListener dataListener) {
+		this.dataListener = dataListener;
 	}
 	
 }
