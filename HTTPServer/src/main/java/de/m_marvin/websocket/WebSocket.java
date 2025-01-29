@@ -133,8 +133,8 @@ public class WebSocket {
 		this.txframesize = framesize;
 		this.txmasking = masking;
 		var txinPipe = new PipedInputStream(this.txin, this.txframesize * 2);
-		this.receptor = new Thread(() -> reception(rxoutPipe), "WebSocket-RX@" + this.hashCode());
-		this.transmitter = new Thread(() -> transmission(txinPipe), "WebSocket-TX@" + this.hashCode());
+		this.receptor = new Thread(() -> reception(rxoutPipe), "WebSocket-RX [" + this.socket.getInetAddress() + "]");
+		this.transmitter = new Thread(() -> transmission(txinPipe), "WebSocket-TX [" + this.socket.getInetAddress() + "]");
 		this.receptor.setDaemon(true);
 		this.transmitter.setDaemon(true);
 		this.receptor.start();

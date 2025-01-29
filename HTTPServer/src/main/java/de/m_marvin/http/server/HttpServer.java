@@ -10,6 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.ForkJoinPool;
 import java.util.regex.Pattern;
 
 import de.m_marvin.http.HttpCode;
@@ -38,7 +39,7 @@ public class HttpServer {
 	
 	public void open() throws IOException {
 		this.serverSocket = new ServerSocket(this.port);
-		this.handleThread = new Thread(this::handleRequests, "HTTP handler");
+		this.handleThread = new Thread(this::handleRequests, "HTTP Request Handler");
 		this.handleThread.setDaemon(true);
 		this.handleThread.start();
 	}
@@ -51,9 +52,7 @@ public class HttpServer {
 		while (!this.serverSocket.isClosed()) {
 			try {
 				Socket clientSocket = this.serverSocket.accept();
-				Thread clientHandlerThread = new Thread(() -> handleClient(clientSocket), "Handler-Thread");
-				clientHandlerThread.setDaemon(true);
-				clientHandlerThread.start();
+				ForkJoinPool.commonPool().execute(() -> handleClient(clientSocket));
 			} catch (IOException e) {
 				if (!this.serverSocket.isClosed())
 					Log.defaultLogger().error("IOException while accepting request!", e);
