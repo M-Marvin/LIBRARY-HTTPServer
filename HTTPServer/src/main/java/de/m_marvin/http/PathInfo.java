@@ -69,7 +69,7 @@ public class PathInfo {
 				sb.append(e.getKey()).append("=").append(e.getValue());
 			}
 		}
-		if (!this.getFragment().isEmpty()) {
+		if (this.getFragment() != null && !this.getFragment().isEmpty()) {
 			sb.append("#").append(this.getFragment());
 		}
 		return sb.toString();

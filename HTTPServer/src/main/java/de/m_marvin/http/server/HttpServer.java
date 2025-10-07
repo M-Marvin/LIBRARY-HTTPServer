@@ -53,9 +53,9 @@ public class HttpServer {
 			try {
 				Socket clientSocket = this.serverSocket.accept();
 				ForkJoinPool.commonPool().execute(() -> handleClient(clientSocket));
-			} catch (IOException e) {
+			} catch (Throwable e) {
 				if (!this.serverSocket.isClosed())
-					Log.defaultLogger().error("IOException while accepting request!", e);
+					Log.defaultLogger().error("Exception while accepting request!", e);
 			}
 		}
 	}
@@ -64,7 +64,7 @@ public class HttpServer {
 		try {
 			currentSocket.setSoTimeout(this.receptionTimeout);
 			String requestHeader = readPackageHeader(currentSocket);
-			ResponseInfo response = handleMessage(requestHeader);
+			ResponseInfo response = handleMessage(requestHeader, currentSocket.getInputStream());
 			if (response != null) {
 				String responseHeader = makeMessage(response.getResponseCode(), response.getResponseMessage(), response.getAttributes());
 				writePackageHeader(currentSocket, responseHeader);
@@ -76,11 +76,11 @@ public class HttpServer {
 						throw new IOException("Unable to transfer all payload bytes!", e);
 					}
 				}
+				// Prevent the socket from being closed if the application requests it.
+				// From this point onward, all control over this socket is transfered to the application.
+				// No further attempts to close, send or write to/from this socket will be made by the HTTP server!
+				if ( !response.freeSocket(currentSocket)) currentSocket = null;
 			}
-			// Prevent the socket from being closed if the application requests it.
-			// From this point onward, all control over this socket is transfered to the application.
-			// No further attempts to close, send or write to/from this socket will be made by the HTTP server!
-			if (!response.freeSocket(currentSocket)) currentSocket = null;
 		} catch (SocketTimeoutException e) {
 			try {
 				writePackageHeader(currentSocket, makeMessage(HttpCode.BAD_REQUEST, "Reception Timeout", new HashMap<>()));
@@ -129,12 +129,18 @@ public class HttpServer {
 		currentSocket.getOutputStream().write(header.getBytes(StandardCharsets.UTF_8));
 	}
 	
-	protected ResponseInfo handleMessage(String httpMessage) throws IOException {
+	protected ResponseInfo handleMessage(String httpMessage, InputStream payloadStream) throws IOException {
 		
 		String[] messageLines = httpMessage.split("\\R");
 		String[] headerLine = messageLines[0].split(" ");
 		
 		HttpRequest requestType = HttpRequest.fromName(headerLine[0]);
+		
+		if (requestType == null) {
+			Log.defaultLogger().error("received invalid http request: %s (first 100 characters)", httpMessage.substring(0, Math.min(100, httpMessage.length())));
+			return null;
+		}
+		
 		PathInfo resourcePath = new PathInfo(headerLine[1]);
 		String protocollTag = headerLine[2];
 		
@@ -153,7 +159,7 @@ public class HttpServer {
 		
 		int payloadLen = getPayloadLength(attributes);
 		
-		ResponseInfo response = handleRequest(requestType, resourcePath, attributes, payloadLen, protocollTag);
+		ResponseInfo response = handleRequest(requestType, resourcePath, attributes, payloadLen, protocollTag, payloadStream);
 		
 		return response;
 		
@@ -180,16 +186,16 @@ public class HttpServer {
 		return messageBuilder.toString();
 	}
 	
-	protected ResponseInfo handleRequest(HttpRequest requestType, PathInfo resourcePath, Map<String, String> attributes, int payloadLen, String protocollTag) {
+	protected ResponseInfo handleRequest(HttpRequest requestType, PathInfo resourcePath, Map<String, String> attributes, int payloadLen, String protocollTag, InputStream payloadStream) {
 		switch (requestType) {
 		case GET:
 			return handleGet(resourcePath, attributes, false);
 		case HEADER:
 			return handleGet(resourcePath, attributes, true);
 		case PUT:
-			return handlePut(resourcePath, attributes, payloadLen);
+			return handlePut(resourcePath, attributes, payloadLen, payloadStream);
 		case POST:
-			return handlePost(resourcePath, attributes, payloadLen);
+			return handlePost(resourcePath, attributes, payloadLen, payloadStream);
 		case DELETE:
 			return handleDelete(resourcePath, attributes);
 		default:
@@ -205,7 +211,7 @@ public class HttpServer {
 
 	@FunctionalInterface
 	public static interface PutRequestHandler {
-		public ResponseInfo handleRequest(PathInfo path, Map<String, String> attributes, int contentLength);
+		public ResponseInfo handleRequest(PathInfo path, Map<String, String> attributes, int contentLength, InputStream contentStream);
 	}
 
 	@FunctionalInterface
@@ -242,14 +248,14 @@ public class HttpServer {
 		return this.getHandler.handleRequest(resourcePath, attributes);
 	}
 	
-	public ResponseInfo handlePost(PathInfo resourcePath, Map<String, String> attributes, int contentLength) {
+	public ResponseInfo handlePost(PathInfo resourcePath, Map<String, String> attributes, int contentLength, InputStream contentStream) {
 		if (this.postHandler == null) return new ResponseInfo(HttpCode.NOT_IMPLEMENTED, "No Handler", null);
-		return this.postHandler.handleRequest(resourcePath, attributes, contentLength);
+		return this.postHandler.handleRequest(resourcePath, attributes, contentLength, contentStream);
 	}
 	
-	public ResponseInfo handlePut(PathInfo resourcePath, Map<String, String> attributes, int contentLength) {
+	public ResponseInfo handlePut(PathInfo resourcePath, Map<String, String> attributes, int contentLength, InputStream contentStream) {
 		if (this.putHandler == null) return new ResponseInfo(HttpCode.NOT_IMPLEMENTED, "No Handler", null);
-		 return this.putHandler.handleRequest(resourcePath, attributes, contentLength);
+		 return this.putHandler.handleRequest(resourcePath, attributes, contentLength, contentStream);
 	}
 	
 	public ResponseInfo handleDelete(PathInfo resourcePath, Map<String, String> attributes) {
