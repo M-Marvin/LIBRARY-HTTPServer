@@ -55,7 +55,7 @@ public class HttpServer {
 				ForkJoinPool.commonPool().execute(() -> handleClient(clientSocket));
 			} catch (Throwable e) {
 				if (!this.serverSocket.isClosed())
-					Log.defaultLogger().error("Exception while accepting request!", e);
+					Log.defaultLogger().warnt("HTTPServer", "Exception while accepting request!", e);
 			}
 		}
 	}
@@ -73,7 +73,8 @@ public class HttpServer {
 						response.getContentSource().get().transferTo(currentSocket.getOutputStream());
 						response.getContentSource().get().close();
 					} catch (IOException e) {
-						throw new IOException("Unable to transfer all payload bytes!", e);
+						Log.defaultLogger().warnt("HTTPServer", "Unable to transfer all payload bytes!", e);
+						return;
 					}
 				}
 				// Prevent the socket from being closed if the application requests it.
@@ -85,17 +86,17 @@ public class HttpServer {
 			try {
 				writePackageHeader(currentSocket, makeMessage(HttpCode.BAD_REQUEST, "Reception Timeout", new HashMap<>()));
 			} catch (IOException e1) {
-				Log.defaultLogger().error("Failed to send timeout response!", e1);
+				Log.defaultLogger().warnt("HTTPServer", "Failed to send timeout response!", e1);
 			}
 		} catch (SocketException e) {
-			Log.defaultLogger().error("SocketException while handeling ServerSocket!", e);
+			Log.defaultLogger().warnt("HTTPServer", "SocketException while handeling ServerSocket!", e);
 		} catch (IOException e) {
-			Log.defaultLogger().error("IOException on socket occured!", e);
+			Log.defaultLogger().warnt("HTTPServer", "IOException on socket occured!", e);
 		} finally {
 			try {
 				if (currentSocket != null) currentSocket.close();
 			} catch (IOException e) {
-				Log.defaultLogger().error("Could not close ServerSocket!", e);
+				Log.defaultLogger().warnt("HTTPServer", "Could not close ServerSocket!", e);
 			}
 		}
 	}
@@ -137,7 +138,7 @@ public class HttpServer {
 		HttpRequest requestType = HttpRequest.fromName(headerLine[0]);
 		
 		if (requestType == null) {
-			Log.defaultLogger().error("received invalid http request: %s (first 100 characters)", httpMessage.substring(0, Math.min(100, httpMessage.length())));
+			Log.defaultLogger().warnt("HTTPServer", "received invalid http request: %s (first 100 characters)", httpMessage.substring(0, Math.min(100, httpMessage.length())));
 			return null;
 		}
 		
@@ -153,7 +154,7 @@ public class HttpServer {
 			if (infoLine.length == 2) {
 				attributes.put(infoLine[0], infoLine[1]);
 			} else {
-				Log.defaultLogger().error("Received invalid http header info line: " + messageLine);
+				Log.defaultLogger().warnt("HTTPServer", "Received invalid http header info line: " + messageLine);
 			}
 		}
 		
@@ -170,7 +171,7 @@ public class HttpServer {
 			try {
 				return Integer.parseInt(additionalInfo.get("Content-Length"));
 			} catch (NumberFormatException e) {
-				Log.defaultLogger().error("Received invalid argument for Content-Length: " + additionalInfo.get("Content-Length"));
+				Log.defaultLogger().warnt("HTTPServer", "Received invalid argument for Content-Length: " + additionalInfo.get("Content-Length"));
 			}
 		}
 		return 0;
@@ -199,7 +200,7 @@ public class HttpServer {
 		case DELETE:
 			return handleDelete(resourcePath, attributes);
 		default:
-			Log.defaultLogger().error("Received invalid HTTP package!");
+			Log.defaultLogger().warnt("HTTPServer", "Received invalid HTTP package!");
 			return new ResponseInfo(HttpCode.BAD_REQUEST, "Invalid Method", null);
 		}
 	}
