@@ -48,6 +48,10 @@ public class HttpServer {
 		this.serverSocket.close();
 	}
 	
+	public boolean isOpen() {
+		return !this.serverSocket.isClosed();
+	}
+	
 	protected void handleRequests() {
 		while (!this.serverSocket.isClosed()) {
 			try {
