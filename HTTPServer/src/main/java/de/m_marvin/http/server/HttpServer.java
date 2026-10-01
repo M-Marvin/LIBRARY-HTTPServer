@@ -10,6 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
 import java.util.regex.Pattern;
 
@@ -25,16 +26,22 @@ public class HttpServer {
 	
 	protected final int port;
 	protected final int receptionTimeout;
+	protected final Executor threadpool;
 	protected ServerSocket serverSocket;
 	protected Thread handleThread;
 	
 	public HttpServer(int port) {
 		this(port, DEFAULT_RECEPTION_TIMEOUT);
 	}
-	
+
 	public HttpServer(int port, int receptionTimeout) {
+		this(port, receptionTimeout, ForkJoinPool.commonPool());
+	}
+	
+	public HttpServer(int port, int receptionTimeout, Executor threadpool) {
 		this.port = port;
 		this.receptionTimeout = receptionTimeout;
+		this.threadpool = threadpool;
 	}
 	
 	public void open() throws IOException {
@@ -56,7 +63,7 @@ public class HttpServer {
 		while (!this.serverSocket.isClosed()) {
 			try {
 				Socket clientSocket = this.serverSocket.accept();
-				ForkJoinPool.commonPool().execute(() -> handleClient(clientSocket));
+				this.threadpool.execute(() -> handleClient(clientSocket));
 			} catch (Throwable e) {
 				if (!this.serverSocket.isClosed())
 					Log.defaultLogger().warnt("HTTPServer", "Exception while accepting request!", e);
