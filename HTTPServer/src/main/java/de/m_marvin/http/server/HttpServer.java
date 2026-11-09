@@ -2,6 +2,7 @@ package de.m_marvin.http.server;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
@@ -21,38 +22,74 @@ import de.m_marvin.http.ResponseInfo;
 import de.m_marvin.simplelogging.Log;
 
 public class HttpServer {
-	
-	public static final int DEFAULT_RECEPTION_TIMEOUT = 1500;
+
+	public static final int DEFAULT_HTTP_PORT = 80;
+	public static final int DEFAULT_TIMEOUT = 10000;
+	public static final int DEFAULT_BACKLOG = 50;
 	
 	protected final int port;
+	protected final int backlog;
+	protected final InetAddress address;
 	protected final int receptionTimeout;
 	protected final Executor threadpool;
 	protected ServerSocket serverSocket;
 	protected Thread handleThread;
+
+	public HttpServer() {
+		this(DEFAULT_HTTP_PORT);
+	}
 	
 	public HttpServer(int port) {
-		this(port, DEFAULT_RECEPTION_TIMEOUT);
-	}
-
-	public HttpServer(int port, int receptionTimeout) {
-		this(port, receptionTimeout, ForkJoinPool.commonPool());
+		this(port, DEFAULT_TIMEOUT);
 	}
 	
-	public HttpServer(int port, int receptionTimeout, Executor threadpool) {
+	public HttpServer(int port, int timeout) {
+		this(port, DEFAULT_BACKLOG, timeout);
+	}
+	
+	public HttpServer(int port, int backlog, int timeout) {
+		this(port, null, backlog, timeout);
+	}
+	
+	public HttpServer(int port, InetAddress address, int backlog, int timeout) {
+		this(port, address, backlog, timeout, ForkJoinPool.commonPool());
+	}
+
+	public HttpServer(Executor threadpool) {
+		this(DEFAULT_HTTP_PORT, threadpool);
+	}
+	
+	public HttpServer(int port, Executor threadpool) {
+		this(port, DEFAULT_TIMEOUT, threadpool);
+	}
+	
+	public HttpServer(int port, int timeout, Executor threadpool) {
+		this(port, DEFAULT_BACKLOG, timeout, threadpool);
+	}
+	
+	public HttpServer(int port, int backlog, int timeout, Executor threadpool) {
+		this(port, null, backlog, timeout, threadpool);
+	}
+	
+	public HttpServer(int port, InetAddress address, int backlog, int timeout, Executor threadpool) {
 		this.port = port;
-		this.receptionTimeout = receptionTimeout;
+		this.address = address;
+		this.backlog = backlog;
+		this.receptionTimeout = timeout;
 		this.threadpool = threadpool;
 	}
 	
 	public void open() throws IOException {
-		this.serverSocket = new ServerSocket(this.port);
+		this.serverSocket = new ServerSocket(this.port, this.backlog, this.address);
 		this.handleThread = new Thread(this::handleRequests, "HTTP Request Handler");
 		this.handleThread.setDaemon(true);
 		this.handleThread.start();
 	}
 	
 	public void close() throws IOException {
-		this.serverSocket.close();
+		if (this.serverSocket != null)
+			this.serverSocket.close();
+		this.serverSocket = null;
 	}
 	
 	public boolean isOpen() {
