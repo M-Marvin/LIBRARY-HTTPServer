@@ -80,6 +80,8 @@ public class HttpServer {
 	}
 	
 	public void open() throws IOException {
+		if (this.serverSocket != null && !this.serverSocket.isClosed())
+			return;
 		this.serverSocket = new ServerSocket(this.port, this.backlog, this.address);
 		this.handleThread = new Thread(this::handleRequests, "HTTP Request Handler");
 		this.handleThread.setDaemon(true);
@@ -89,7 +91,6 @@ public class HttpServer {
 	public void close() throws IOException {
 		if (this.serverSocket != null)
 			this.serverSocket.close();
-		this.serverSocket = null;
 	}
 	
 	public boolean isOpen() {

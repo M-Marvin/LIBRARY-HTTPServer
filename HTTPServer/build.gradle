@@ -3,7 +3,7 @@ apply plugin: 'java-library'
 apply plugin: 'maven-publish'
 
 group = 'com.github.M-Marvin'
-version = '1.4'
+version = '1.5'
 
 tasks.named('jar') {
     manifest {
